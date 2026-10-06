@@ -1,9 +1,9 @@
-# Writeup: [Nome da Sala] - TryHackMe
+# Writeup: Enterprise - TryHackMe
 
-**Dificuldade:** [Fácil / Média / Difícil]  
-**OS:** [Linux / Windows]  
-**Categorias:** [Ex: Web, Active Directory, PrivEsc]  
-**Data de Conclusão:** DD/MM/AAAA  
+**Dificuldade:** Difícil  
+**OS:** Windows  
+**Categorias:** Active Directory e PrivEsc  
+**Data de Conclusão:** 06/10/2025  
 
 ---
 
