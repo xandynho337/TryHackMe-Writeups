@@ -32,7 +32,7 @@ nmap -v -sSC 10.66.166.228 -T2 -g 80 -D RND:30 -p50-470,3268,3389,5985 --open
 
 <img width="824" height="459" alt="image" src="https://github.com/user-attachments/assets/d01d25c8-263a-4448-91e0-4145d32a7b13" />
 
-Assim foi possível encontrar nomes de domínios relevantes que serão adicionados no arquivo "/etc/hosts" da máquina do atacante para próximos passos.
+Assim foi possível encontrar nomes de domínios relevantes que serão adicionados no arquivo "/etc/hosts" da máquina do atacante para próximos passos.   
 <img width="824" height="473" alt="image" src="https://github.com/user-attachments/assets/856512c2-724f-4009-9ac0-3deb0a9b88ca" />
 
 **Portas Abertas Encontradas relevantes:**
