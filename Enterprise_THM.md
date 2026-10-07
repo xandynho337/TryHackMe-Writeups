@@ -2,14 +2,14 @@
 
 **Dificuldade:** Difícil  
 **OS:** Windows  
-**Categorias:** Active Directory e PrivEsc  
+**Categorias:** Active Directory e Privilege Escalation, Web
 **Data de Conclusão:** 06/10/2025  
 
 ---
 ## Resumo Executivo
 > Visão geral do impacto técnico e de negócio das vulnerabilidades encontradas.
 
-O objetivo deste laboratório foi obter acesso com privilégios máximos (NT Authority\SYSTEM`) no alvo. A intrusão inicial ocorreu através de acesso ao IIS, que direcionou o atacante ao github com segurança fraca e credenciais expostas, permitindo usar as credenciais encontradas para conseguir novas credenciais para acesso via RDP. A escalada de privilégios foi alcançada explorando um serviço vulnerável pois havia permissão de escrita e flag Unquoted no Winpeas.
+O objetivo deste laboratório foi obter acesso com privilégios máximos (NT Authority\SYSTEM`) no alvo. A intrusão inicial foi viabilizada pelo vazamento de credenciais de domínio em um repositório público do GitHub (Information Disclosure). De posse do acesso inicial, foi realizada a enumeração do Active Directory e a execução da técnica de Kerberoasting, permitindo a extração e quebra offline da credencial de uma conta de serviço com acesso RDP. Por fim, a escalada de privilégios locais para NT AUTHORITY\SYSTEM ocorreu pela exploração do vetor Unquoted Service Path no serviço ZeroTier One.
 
 ---
 
@@ -110,10 +110,11 @@ Explorando o GitHub, foi possível encontrar 1 pessoa ligada ao repositório do 
 <img width="1360" height="583" alt="image" src="https://github.com/user-attachments/assets/17b5b9d5-3327-4e71-85a9-012ee29a3da8" />
 
 ### Exploração da Vulnerabilidade
-* **Vulnerabilidade:** Credenciais de domínio expostas em repositórios públicos
+* **Vulnerabilidade:** Information Disclosure(Credenciais de domínio expostas em repositórios públicos)
 * **Vetor de Ataque:** Uso das credenciais para busca de novas credenciais no AD, enumeração de usuários e acesso não autorizado via RDP.
 
-Agora por termos credenciais válidas de um usuário, podemos usá-la para encontrar outros usuários e senhas procurando por SPNs no domínio e tentar a quebra do mesmo com john, afim de conseguir mais usuários.
+Agora por termos credenciais válidas de um usuário, podemos usá-la para encontrar outros usuários e senhas usando a técnica de kerberoasting identificando contas de serviço vinculadas a Service Principal Names(SPNs), afim de conseguir mais usuários.
+
 ```bash
 /usr/share/doc/python3-impacket/examples/GetUserSPNs.py lab.enterprise.thm/n[ENCONTRADO]:T[ENCONTRADO] -request
 ```
@@ -152,7 +153,7 @@ Assim, o arquivo user possui a primeira flag: THM{e[ENCONTRADO]}
 ### Enumeração Interna
 Identificação do vetor de elevação de privilégios:
 
-Para identificar vetores para elevação de privilégios, foi tranferido o arquivo WinPEAS.ps1 para a máquina e verificado os resultados encontrados. Foi identificado um serviço com o nome de ZeroTier One.exe, o mesmo estava com a flag de Unquoted Service Path, indicando que o serviço não possui aspas no seu caminho de execução.
+Para identificar vetores para elevação de privilégios, foi tranferido o arquivo WinPEAS.ps1 para a máquina e verificado os resultados encontrados. Foi identificado um serviço com o nome de ZeroTier One.exe, o mesmo disponibilizava de uma vulnerabilidade Unquoted Service Path(caminho de serviço sem aspas) combinada com permissão de escrita no diretório pai.
 
 <img width="1365" height="627" alt="image" src="https://github.com/user-attachments/assets/c1c4ad61-57f4-4408-bc34-e3aa874175a8" />
 
@@ -189,13 +190,13 @@ Com acesso pleno de NT Authority\System, é possível acessar a pasta de rede do
 
 ---
 
-> **Acesso obtido:** Acesso completo de administrador do sistema (NT AUTHORITY\SYSTEM).
+> **Acesso obtido:** Acesso Shell Interativa completa de administrador do sistema (NT AUTHORITY\SYSTEM).
 
 ---
 
 ## 4. Recomendações de Mitigação (Remediação)
 
-1. **Aplicação SMB:** Desabilitar o acesso externo na aplicação, impedindo o risco de exposição de informações sigilosas.
-2. **GitHub Público:** Excluir as credenciais expostas no usuário colaborador e alterar o projeto para privado.
-3. **SPNs expostos:** Remoção de SPNs e melhoria na complexidade das senhas.
-4. **Verificar serviços:** Verificar caminho de serviços e colocá-los como absolutos(Utilizar aspas) e alterar permissões de pastas.
+1. **SMB(Compartilhamento de Arquivos):** Desabilitar o acesso anônimo (Guest / Anonymous Access) aos compartilhamentos de rede SMB e restringir a visibilidade de pastas com dados sensíveis aplicando permissões adequadas de ACL/DACL.
+2. **Vazamento no GitHub:** Implementar ferramentas de Secret Scanning (ex: GitGuardian, Trufflehog) na esteira de CI/CD, revogar imediatamente a credencial comprometida e sanitizar o histórico de commits no repositório.
+3. **Contas de Serviço / SPNs (Kerberoasting):** Adotar senhas fortes/complexas (com mais de 25 caracteres) para contas de serviço ligadas a SPNs para inviabilizar ataques de força bruta, ou migrar para Group Managed Service Accounts (gMSA).
+4. **Serviços no Windows (PrivEsc):** Envolver todos os caminhos de executáveis de serviços que contenham espaços entre aspas no Registro do Windows (HKLM\SYSTEM\CurrentControlSet\Services) e aplicar o princípio do menor privilégio nas permissões de diretórios no sistema de arquivos (NTFS).
