@@ -2,7 +2,7 @@
 
 **Dificuldade:** Difícil  
 **OS:** Windows  
-**Categorias:** Active Directory e Privilege Escalation, Web   
+**Categorias:** Active Directory, Privilege Escalation e Web   
 **Data de Conclusão:** 06/10/2025  
 
 ---
