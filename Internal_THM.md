@@ -1,9 +1,9 @@
-# Writeup: Enterprise - TryHackMe
+# Writeup: Internal - TryHackMe
 
 **Dificuldade:** Difícil  
 **OS:** Windows  
 **Categorias:** Active Directory, Privilege Escalation e Web   
-**Data de Conclusão:** 06/10/2025  
+**Data de Conclusão:** 20/10/2025  
 
 ---
 ## Resumo Executivo
@@ -22,71 +22,77 @@ Sintaxe utilizada para a varredura inicial:
 nmap -v -sSCV 10.66.153.84 -Pn -g 80 -D RND:30 --top-ports=5000
 ```
 
-[print resultados nmap]
-
-Após a varredura inicial comum, analisa-se as portas abertas mais interessantes agora conhecidas e refaça a varredura utilizando os scripts do próprio nmap utilizando a flag "-sSC".
-
-```bash
-nmap -v -sSC 10.66.166.228 -T2 -g 80 -D RND:30 -p50-470,3268,3389,5985 --open
-```
-
-<img width="824" height="459" alt="image" src="https://github.com/user-attachments/assets/d01d25c8-263a-4448-91e0-4145d32a7b13" />
-
-Assim foi possível encontrar nomes de domínios relevantes que serão adicionados no arquivo "/etc/hosts" da máquina do atacante para próximos passos.   
-<img width="824" height="473" alt="image" src="https://github.com/user-attachments/assets/856512c2-724f-4009-9ac0-3deb0a9b88ca" />
+<img width="732" height="254" alt="image" src="https://github.com/user-attachments/assets/9220c738-8fe5-4776-a48a-f1912da5f92b" />
 
 **Portas Abertas Encontradas relevantes:**
-* **80:** http
-* **135:** msrpc
-* **139:** netbios-ssn
-* **445:** microsoft-ds(smb)
-* **3389:** ms-wbt-server
-* **5985:** wsman
+* **22/tcp:** ssh - OpenSSH 7.6p1 Ubuntu 4ubuntu0.3
+* **80/tcp:** http - Apache/2.4.29
 
 Após a varredura é necessário realizar a enumeração dos serviços e tentativa de interação com os mesmos.
 
 ### Enumeração do Serviço Web
-Ao acessar o site, apenas um página em branco com uma escrita informando para não ser mexido é mostrado em todas os domínios que foram encontrados anteriormente.
+Ao acessar o site, é recebido a página padrão do Apache, assim, será necessário realizar a enumeração de diretórios e arquivos do servidor web, na tentativa de encontrar um ponto de entrada explorável.
 
-<img width="1365" height="626" alt="image" src="https://github.com/user-attachments/assets/9195332b-a34d-4273-9f70-97b32fb47636" />
+<img width="1364" height="626" alt="image" src="https://github.com/user-attachments/assets/54d15786-0d73-41b6-80e5-37b4609bb7e7" />
 
-Dessa forma, foi feito a tentativa de encontrar diretórios e arquivos nesse site com o feroxbuster.
+A enumeração de diretórios e arquivos foi realizada com a ferramenta Feroxbuster e uma wordlist do dirb.
 
 ```bash
-feroxbuster -u "http://enterprise.thm/" -w /usr/share/wordlists/dirb/big.txt -a "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36" -C 503
+feroxbuster -u "http://10.66.153.84/" -w /usr/share/wordlists/dirb/big.txt -a "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36" -C 503
 ```
 
-<img width="831" height="425" alt="image" src="https://github.com/user-attachments/assets/7a18cb88-2677-46ac-9aff-bd3cd95c6338" />
+<img width="886" height="504" alt="image" src="https://github.com/user-attachments/assets/4ea39ec2-ed12-40e7-abcb-ce41c0850498" />
 
- O mesmo retornou apenas o arquivo "robots.txt", mas ao acessa-lo, não havia informações que poderiam ser utilizadas.
+A ferramenta trouxe diversas pastas e subpastas do servidor web, realiza-se a divisão em diretórios pais, e seus filhos, para explorar um de cada vez.
  
-<img width="1359" height="626" alt="image" src="https://github.com/user-attachments/assets/fb38f86a-6740-4292-bb10-3f6bb46bb9fd" />
+**Diretórios Encontrados:**
+* **/blog:**
+* **/javascript:** 
+* **/phpmyadmin:**
+* **/wordpress:**  
 
+### Enumeração do diretório "/blog":
 
-Dessa forma, hora do próximo serviço.
+Ao acessar o diretório, é possível notar que a página vem quebrada, isso pode ocorrer quando referenciais dentro do HTML não foram tratadas.
 
-### Enumeração do Serviço SMB
-Para conseguir a enumeração no SMB, foi necessário realizar a tentativas de uso de usuário anônimo sem senha. Ao proceder com a tentativa o primeiro ponto de entrada foi encontrado.
+<img width="1060" height="625" alt="image" src="https://github.com/user-attachments/assets/ec207377-276c-4456-a0cc-b728c66e0cfb" />
+
+Assim, será necessário avaliar o código HTML dessa página em busca de nomes de domínios para inserção nos hosts da máquina do atacante.
+
+<img width="1112" height="563" alt="image" src="https://github.com/user-attachments/assets/954ec902-80d4-4703-baeb-7bd0394386bd" />
+
+Verificando o código HTML do site, foi encontrado um nome de domínio para a máquina referente ao Try Hack Me(THM). O mesmo foi inserido no arquivo hosts do atacante e a página recarregada para análise.
+
+<img width="443" height="139" alt="image" src="https://github.com/user-attachments/assets/394ea097-b0b4-49d0-aa72-bee3fd454f79" />
+<img width="644" height="608" alt="image" src="https://github.com/user-attachments/assets/ebe11f65-3df5-49ad-b770-ba1ff0c8b91c" />
+
+As quebras do site foram solucionadas após a inserção do domínio no arquivo hosts. Agora pode-se analisar de forma correta o diretório blog e sua HTML em busca de pontos de entrada.
+
+<img width="1072" height="481" alt="image" src="https://github.com/user-attachments/assets/5227aae5-c528-4a08-bfb8-e1da32090ab7" />
+
+Foi encontrado um número de versão do wordpress. Sabendo disso, será utilizado uma ferramenta para a enumeração de pontos de entrada e vulnerabilidades no wordpress, o wpscan, buscando por plugins e contas de usuários vulneráveis:
 
 ```bash
-smbclient -L \\10.67.160.138 -U
+wpscan --url http://internal.thm/blog/ -e vp,u --plugins-detection aggressive --api-token [TOKEN]
 ```
+Não foram encontrados plugins interessantes que poderiam permitir um acesso ao servidor, mas, foi encontrado um nome de usuário vulnerável.
 
-<img width="832" height="386" alt="image" src="https://github.com/user-attachments/assets/76b9fe31-36bd-41e2-8f55-2205ab5afe5e" />
+<img width="886" height="443" alt="image" src="https://github.com/user-attachments/assets/a3e340b4-bdd5-4c23-b031-0acf1d0e9599" />
 
-Ao realizar a listagens dos diretórios disponíveis no SMB, encontra-se dois relevantes: "Docs" e "Users" que possuem uma observação para que não seja tocado, então, será utilizado o smbclient para explorar as pastas.
+Com esse usuário, é possível utilizar o modo de Brute Force dessa ferramenta e verificar se achamos uma credencial válida para o mesmo.
 
 ```bash
-smbclient //enterprise.thm/Users
-# Após entrar no SMB, exportar tudo para sua máquina
-smb: \> ls #Para listar
-smb: \> cd #Para entrar
-smb: \> get #Para baixar algum arquivo
+wpscan --url http://internal.thm/blog/ --usernames admin --passwords /usr/share/wordlists/rockyou.txt --max-threads 50 --api-token [TOKEN]
 ```
 
-<img width="826" height="416" alt="image" src="https://github.com/user-attachments/assets/fa397b6b-0f3a-4f85-b41f-7d7d623928e1" />
+<img width="889" height="236" alt="image" src="https://github.com/user-attachments/assets/33765503-74e8-4dbd-922c-51201ab3243c" />
 
-Verificando todas as pastas, as duas únicas pastas que permite a exploração/listagem são as pastas "Default" e "LAB-ADMIN". Sabendo disso, guarde a informação caso seja necessário usa-la novamente depois.
+Foi encontrado credenciais válidas de acesso administrativo para acesso ao WordPress do servidor. Com as credenciais em mãos, foi feito login no painel administrativo.
+
+<img width="1357" height="581" alt="image" src="https://github.com/user-attachments/assets/7a82163b-fe6b-4fa6-a659-5269c0df1b55" />
+
+Com esse acesso, analisa-se os plugins e temas em busca de algum que permita escrita, dessa forma, pode-se realizar um Reverse Shell para a máquina do atacante.
+
 
 ---
 ## 2. Intrusão Inicial (Initial Access)
