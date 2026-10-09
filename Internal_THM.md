@@ -201,7 +201,7 @@ Com isso, ao acessar o site do revshells.com, foi possível encontrar um script 
 
 <img width="1108" height="651" alt="image" src="https://github.com/user-attachments/assets/553c5148-9223-497b-819c-d3a53ad4eb03" />
 
-Ao executar o script com o Jenkins, foi possível acessar a máquina que hospeda o Jenkins, e dessa forma, foi realizado a tentativa de chegar ao diretório root. Não foi possível, então, é necessário realizar a mesma enumeração de diretórios comuns anteriormente feito no usuário aubreanna.
+Ao executar o script, foi possível acessar a máquina que hospeda o Jenkins, e, dessa forma, realizada a tentativa de chegar ao diretório root. Não foi possível... Então, é necessário realizar a mesma enumeração de diretórios comuns anteriormente feito no usuário aubreanna.
 
 <img width="1038" height="625" alt="image" src="https://github.com/user-attachments/assets/053c9423-6921-4371-be99-3aa8c7593168" />
 
