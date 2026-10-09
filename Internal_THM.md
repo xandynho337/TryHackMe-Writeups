@@ -2,14 +2,14 @@
 
 **Dificuldade:** Difícil  
 **OS:** Linux  
-**Categorias:** Web, Container, Privilege Escalation   
+**Categorias:** Web, Pivoting, Jenkins, Privilege Escalation   
 **Data de Conclusão:** 20/10/2025  
 
 ---
 ## Resumo Executivo
-> Visão geral do impacto técnico e de negócio das vulnerabilidades encontradas.
+> Visão geral do impacto técnico e da cadeia de exploração do ambiente.
 
-O objetivo deste laboratório foi obter acesso com privilégios máximos (Root) no alvo. A intrusão inicial foi viabilizada pelo acesso administrativo não autorizado ao WordPress e vazamento de credenciais em arquivo interno do Servidor(Information Disclosure). De posse do acesso inicial, foi realizada a enumeração de pontos de acesso na máquina, encontrando um serviço interno rodando em um container, sendo necessário tunelamento SSH. Por fim, a escalada de privilégios foi realizada mediante à exploração do serviço interno e realizando uma técnica de Container Escape. Ao realizar a técnica foi encontrado um arquivo com credenciais de root para a máquina inicial.
+O objetivo deste laboratório foi obter acesso com privilégios máximos (`root`) no servidor alvo. A intrusão inicial foi viabilizada pela obtenção de credenciais administrativas no WordPress via ataque de força bruta, seguida de Execução Remota de Código (RCE) através da edição arbitrária de arquivos de tema. A enumeração interna revelou credenciais de usuário em um arquivo de backup (*Information Disclosure*), permitindo acesso via SSH. A partir do host, identificou-se um serviço Jenkins rodando em um container isolado na rede interna. Utilizando **SSH Local Port Forwarding (Pivoting)**, o serviço foi exposto localmente, permitindo a quebra de senha do painel, RCE via console de scripts do Jenkins e a extração de credenciais de `root` armazenadas no ambiente containerizado (*Credential Harvesting*).
 
 ---
 
@@ -73,6 +73,7 @@ As quebras do site foram solucionadas após a inserção do domínio no arquivo 
 ---
 ## 2. Intrusão Inicial (Initial Access)
 
+### Enumeracao e Brute Force no WordPress
 Foi encontrado um número de versão do wordpress. Sabendo disso, será utilizado uma ferramenta para a enumeração de pontos de entrada e vulnerabilidades no wordpress, o wpscan, buscando por plugins e contas de usuários vulneráveis:
 
 ```bash
@@ -96,9 +97,9 @@ Foi encontrado uma credencial válida de acesso administrativo para acesso ao Wo
 
 Com esse acesso, analisa-se os plugins e temas em busca de algum que permita escrita, dessa forma, pode-se realizar um Reverse Shell para a máquina do atacante.
 
-### Exploração da Vulnerabilidade
-* **Vulnerabilidade:** Remote Code Execution via Edição Arbitrária de arquivos de Temas
-* **Vetor de Ataque:** Acesso administrativo e permissão de edição de arquivos de tema do wordpress levando a um RCE.
+### Exploração: Remote Code Execution (RCE) via Tema WordPress
+* **Vulnerabilidade:** Edição arbitrária de código PHP em temas do WordPress (*Theme Editor RCE*).
+* **Vetor de Ataque:** Injeção de payload reverse shell no modelo `archive.php` do tema instalado (`twentyseventeen`).
 
 Após a entrada no painel administrativo do WordPress, foi encontrado um tema que permitia sobrescrever o arquivo php do mesmo. 
 
@@ -136,7 +137,7 @@ export TERM=xterm-256color
 
 <img width="526" height="252" alt="image" src="https://github.com/user-attachments/assets/c29521b1-96a6-4aa0-9ca9-8a0b0f63b05e" />
 
-Agora com uma shell completa, será necessário procurar novos pontos de entrada ou credenciais que permita o acesso ao usuário "aubreanna".
+Agora com uma shell estável, será necessário procurar novos pontos de entrada ou credenciais que permita o acesso ao usuário "aubreanna".
 
 **Diretórios Interessantes para Exploração:**
 * **/tmp:**
@@ -161,7 +162,7 @@ ssh aubreanna@internal.thm
 
 ---
 
-## 3. Escalada de Privilégios (Privilege Escalation)
+## 3. Movimentação Lateral e Escalada de Privilégios (Privilege Escalation)
 
 ### Enumeração Interna
 Identificação do vetor de elevação de privilégios:
@@ -169,6 +170,8 @@ Identificação do vetor de elevação de privilégios:
 No mesmo usuário, há um arquivo "jenkins.txt" que informa existir um serviço Jenkins Interno rodando em "172.17.0.2:8080". Mas, analisando a máquina que foi acessada, ela possui o IP 172.17.0.1 atribuída.
 
 <img width="885" height="448" alt="image" src="https://github.com/user-attachments/assets/fdb2b0db-3492-4a42-aede-1acfa8e6130b" />
+
+### Pivoting via SSH Local Port Forwarding
 
 Dessa forma, para conseguir interagir com o serviço interno, é necessário realizar um tunelamento SSH na máquina, usando as credenciais do usuário "aubreanna".
 
@@ -179,6 +182,8 @@ ssh -L 1234:172.17.0.2:8080 aubreanna@internal.thm
 Após realizar o tunelamento, será possível acessar o serviço pela máquina do atacante na porta escolhida no ip local da máquina.
 
 <img width="931" height="607" alt="image" src="https://github.com/user-attachments/assets/1c4763a1-44a6-4d9f-b5fa-1d1454994968" />
+
+### Exploração do Jenkins (Brute Force & Groovy RCE)
 
 Agora com acesso ao serviço, é necessário descobrir credenciais para acesso ao mesmo. Por se tratar de um serviço interno, será realizado um ataque de Brute Force com FFUF. Para isso, utiliza-se o navegador do Burp para capturar a requisição de login incorreta.
 
@@ -201,6 +206,8 @@ Com isso, ao acessar o site do revshells.com, foi possível encontrar um script 
 
 <img width="1108" height="651" alt="image" src="https://github.com/user-attachments/assets/553c5148-9223-497b-819c-d3a53ad4eb03" />
 
+### Credential Harvesting e Acesso Root no Host Principal
+
 Ao executar o script, foi possível acessar a máquina que hospeda o Jenkins, e, dessa forma, realizada a tentativa de chegar ao diretório root. Não foi possível... Então, é necessário realizar a mesma enumeração de diretórios comuns anteriormente feito no usuário aubreanna.
 
 <img width="1038" height="625" alt="image" src="https://github.com/user-attachments/assets/053c9423-6921-4371-be99-3aa8c7593168" />
@@ -219,6 +226,6 @@ Escalação de privilégios bem sucedida. Foi possível acessar o SSH da máquin
 
 ## 4. Recomendações de Mitigação (Remediação)
 
-1. **WordPress(Web):** Adotar senhas fortes/complexas para o usuário de administração do CMS, desabilitar ou excluir temas vulneráveis que possuam arquivos com possibilidade de edição.
-2. **Vazamento no Servidor:** Verificar permissões de arquivos confidenciais e críticos dentro do servidor e não expor informações de serviços rodando em outras máquinas.
-3. **Container Escape:** Aplicar estratégia de defesa em profundidade, redução de privilégios, endurecimento de configurações e monitoramento no Serviço do Container, evitando o escape para o Host.
+1. **Aplicações Web (WordPress):** Implementar políticas severas de complexidade de senha e bloqueio de tentativas de login (*Rate Limiting* / MFA), além de revogar permissões de edição de código via painel (`DISALLOW_FILE_EDIT = true` no `wp-config.php`).
+2. **Gestão de Segredos e Arquivos Sensíveis:** Remover arquivos de backup e notas contendo credenciais em texto claro (`wp-save.txt`, `note.txt`) espalhados pelo sistema de arquivos e aplicar permissões restritas de leitura (POSIX ACLs).
+3. **Hardening de Serviços Internos e CI/CD:** Restringir o acesso ao Jenkins Script Console apenas a administradores estritamente necessários, aplicar senhas fortes no painel e isolar adequadamente os ambientes de CI/CD para evitar a reutilização de credenciais críticas entre containers e o SO hospedeiro.
