@@ -1,15 +1,15 @@
 # Writeup: Internal - TryHackMe
 
 **Dificuldade:** Difícil  
-**OS:** Windows  
-**Categorias:** Active Directory, Privilege Escalation e Web   
+**OS:** Linux  
+**Categorias:** Web, Container, Privilege Escalation   
 **Data de Conclusão:** 20/10/2025  
 
 ---
 ## Resumo Executivo
 > Visão geral do impacto técnico e de negócio das vulnerabilidades encontradas.
 
-O objetivo deste laboratório foi obter acesso com privilégios máximos (NT Authority\SYSTEM`) no alvo. A intrusão inicial foi viabilizada pelo vazamento de credenciais de domínio em um repositório público do GitHub (Information Disclosure). De posse do acesso inicial, foi realizada a enumeração do Active Directory e a execução da técnica de Kerberoasting, permitindo a extração e quebra offline da credencial de uma conta de serviço com acesso RDP. Por fim, a escalada de privilégios locais para NT AUTHORITY\SYSTEM ocorreu pela exploração do vetor Unquoted Service Path no serviço ZeroTier One.
+O objetivo deste laboratório foi obter acesso com privilégios máximos (Root) no alvo. A intrusão inicial foi viabilizada pelo acesso administrativo não autorizado ao WordPress e vazamento de credenciais em arquivo interno do Servidor(Information Disclosure). De posse do acesso inicial, foi realizada a enumeração de pontos de acesso na máquina, encontrando um serviço interno rodando em um container, sendo necessário tunelamento SSH. Por fim, a escalada de privilégios foi realizada mediante à exploração do serviço interno e realizando uma técnica de Container Escape. Ao realizar a técnica foi encontrado um arquivo com credenciais de root para a máquina inicial.
 
 ---
 
@@ -31,7 +31,7 @@ nmap -v -sSCV 10.66.153.84 -Pn -g 80 -D RND:30 --top-ports=5000
 Após a varredura é necessário realizar a enumeração dos serviços e tentativa de interação com os mesmos.
 
 ### Enumeração do Serviço Web
-Ao acessar o site, é recebido a página padrão do Apache, assim, será necessário realizar a enumeração de diretórios e arquivos do servidor web, na tentativa de encontrar um ponto de entrada explorável.
+Ao acessar o site, é recebido a página padrão do Apache, assim, será preciso realizar a enumeração de diretórios e arquivos do servidor web, na tentativa de encontrar um ponto de entrada explorável.
 
 <img width="1364" height="626" alt="image" src="https://github.com/user-attachments/assets/54d15786-0d73-41b6-80e5-37b4609bb7e7" />
 
@@ -57,7 +57,7 @@ Ao acessar o diretório, é possível notar que a página vem quebrada, isso pod
 
 <img width="1060" height="625" alt="image" src="https://github.com/user-attachments/assets/ec207377-276c-4456-a0cc-b728c66e0cfb" />
 
-Assim, será necessário avaliar o código HTML dessa página em busca de nomes de domínios para inserção nos hosts da máquina do atacante.
+Assim, é preciso avaliar o código HTML dessa página em busca de nomes de domínios para inserção nos hosts da máquina do atacante.
 
 <img width="1112" height="563" alt="image" src="https://github.com/user-attachments/assets/954ec902-80d4-4703-baeb-7bd0394386bd" />
 
@@ -116,9 +116,9 @@ nc -vlp 1234
 
 <img width="381" height="137" alt="image" src="https://github.com/user-attachments/assets/9ae80701-b975-4ac7-b812-0b55932ff4f2" />
 
-Com a porta já aberta aguardando a conexão na máquina do atacante, para que a shell interativa seja executada, é necessário acessar o arquivo "archive.php" do tema, diretamente pelo navegador, que fará o payload ser executado e estabelecer conexão com a máquina do atacante. O caminho padrão do tema vulnerável é "/wp-content/themes/twentyseventeen/"
+Para que a shell interativa seja executada, é necessário acessar o arquivo "archive.php" do tema, diretamente pelo navegador, que fará o payload ser executado e estabelecer conexão com a máquina do atacante. O caminho padrão do tema vulnerável é "/wp-content/themes/twentyseventeen/"
 
-<img width="1241" height="446" alt="image" src="https://github.com/user-attachments/assets/0c50d900-47a9-411e-ba30-cf02cc903421" />
+<img width="1241" height="449" alt="image" src="https://github.com/user-attachments/assets/e91262ea-234d-4d78-95c8-d5ccda6fe149" />
 
 Acesso concedido ao servidor com usuário www-data!!
 
@@ -147,7 +147,7 @@ Ao analisar o conteúdo das pastas, uma chamou mais atenção, essa pasta tinha 
 
 <img width="885" height="421" alt="image" src="https://github.com/user-attachments/assets/ef10300a-ec25-45ae-9ec8-91fe27d48180" />
 
-Ao testar as credenciais na porta SSH do servidor, foi constatado que era possível o acesso. Dessa forma, conseguimos a primeira flag que era buscado "THM{[ENCONTRADO]}"
+Ao testar as credenciais na porta SSH do servidor, foi constatado que era possível o acesso. Dessa forma, conseguimos a primeira flag que era buscada "THM{[ENCONTRADO]}"
 
 ```bash
 ssh aubreanna@internal.thm
@@ -166,11 +166,11 @@ ssh aubreanna@internal.thm
 ### Enumeração Interna
 Identificação do vetor de elevação de privilégios:
 
-No mesmo usuário, há um arquivo "jenkins.txt" que informa existir um serviço Jenkins Interno rodando em "172.17.0.2:8080". Mas, analisando a máquina que foi acessada, ela possui o IP 172.16.0.1 atribuída.
+No mesmo usuário, há um arquivo "jenkins.txt" que informa existir um serviço Jenkins Interno rodando em "172.17.0.2:8080". Mas, analisando a máquina que foi acessada, ela possui o IP 172.17.0.1 atribuída.
 
 <img width="885" height="448" alt="image" src="https://github.com/user-attachments/assets/fdb2b0db-3492-4a42-aede-1acfa8e6130b" />
 
-Dessa forma, para conseguir interagir com o serviço interno, será necessário realizar um tunelamento SSH na máquina, usando as credenciais do usuário "aubreanna".
+Dessa forma, para conseguir interagir com o serviço interno, é necessário realizar um tunelamento SSH na máquina, usando as credenciais do usuário "aubreanna".
 
 ```bash
 ssh -L 1234:172.17.0.2:8080 aubreanna@internal.thm
@@ -180,11 +180,11 @@ Após realizar o tunelamento, será possível acessar o serviço pela máquina d
 
 <img width="931" height="607" alt="image" src="https://github.com/user-attachments/assets/1c4763a1-44a6-4d9f-b5fa-1d1454994968" />
 
-Agora com acesso ao serviço, será necessário descobrir credenciais para acesso ao mesmo. Por se tratar de um serviço interno, será realizado um ataque de Brute Force com FFUF. Para isso, utiliza-se o navegador do Burp para capturar a requisição de login incorreta.
+Agora com acesso ao serviço, é necessário descobrir credenciais para acesso ao mesmo. Por se tratar de um serviço interno, será realizado um ataque de Brute Force com FFUF. Para isso, utiliza-se o navegador do Burp para capturar a requisição de login incorreta.
 
 <img width="1287" height="615" alt="image" src="https://github.com/user-attachments/assets/f7ed3c51-1d13-4529-a374-6dcee2e6786b" />
 
-Com isso, é necessário realizar a configuração no ffuf, para que o mesmo teste as senhas até que a resposta seja diferente de "302-401".
+Dessa forma, é necessário realizar a configuração no ffuf, para que o mesmo teste as senhas até que a resposta seja diferente de "302-401".
 
 ```bash
 ffuf -X POST -u http://127.0.0.1:1234/j_acegi_security_check -d "j_username=admin&j_password=FUZZ&from=%2F&Submit=Sign+in" -H "Content-Type: application/x-www-form-urlencoded" -w /usr/share/wordlists/rockyou.txt -r -fc 401
@@ -193,7 +193,7 @@ ffuf -X POST -u http://127.0.0.1:1234/j_acegi_security_check -d "j_username=admi
 
 <img width="827" height="439" alt="image" src="https://github.com/user-attachments/assets/396c7d8a-fdf1-4ad9-97a9-14dcdb24fbc1" />
 
-Assim foi possível acessar o painel de controle do Jenkins. Ao entrar e verificar as configurações de gerenciamento do Jenkins, é possível ver uma opção de "console de script", assim, podendo ser utilizado para executar uma shell reversa, dando acesso não autorizado ao host que executa o serviço.
+Diante disso, foi possível acessar o painel de controle do Jenkins. Ao entrar e verificar as configurações de gerenciamento do Jenkins, é possível ver uma opção de "console de script", assim, podendo ser utilizado para executar uma shell reversa, dando acesso não autorizado ao host que executa o serviço.
 
 <img width="1076" height="588" alt="image" src="https://github.com/user-attachments/assets/4d14a043-b8d0-4155-b98d-5411a0a39007" />
 
@@ -201,15 +201,15 @@ Com isso, ao acessar o site do revshells.com, foi possível encontrar um script 
 
 <img width="1108" height="651" alt="image" src="https://github.com/user-attachments/assets/553c5148-9223-497b-819c-d3a53ad4eb03" />
 
-Ao executar o script com o Jenkins, foi possível acessar a máquina que hospeda o Jenkins, e dessa forma, foi realizado a tentativa de chegar ao diretório root. Não foi possível, então será necessário realizar a mesma enumeração de diretórios comuns anteriormente feito no usuário aubreanna.
+Ao executar o script com o Jenkins, foi possível acessar a máquina que hospeda o Jenkins, e dessa forma, foi realizado a tentativa de chegar ao diretório root. Não foi possível, então, é necessário realizar a mesma enumeração de diretórios comuns anteriormente feito no usuário aubreanna.
 
 <img width="1038" height="625" alt="image" src="https://github.com/user-attachments/assets/053c9423-6921-4371-be99-3aa8c7593168" />
 
-Ao realizar a enumeração, foi possível verificar um arquivo com o nome de "note.txt" dentro da pasta "/opt". Dentro desse arquivo havia as credenciais de root da máquina. Com essa credencial, foi feito a tentativa de conexão com o usuário root no SSH.
+Ao realizar a enumeração, foi possível verificar um arquivo com o nome de "note.txt" dentro da pasta "/opt". Dentro desse arquivo havia as credenciais de root da máquina. Com essa credencial, foi feito a tentativa de conexão com o usuário root no SSH que estava conectado com o usuário aubreanna(Foi utilizado comando "su" para a troca do usuário).
 
 <img width="412" height="131" alt="image" src="https://github.com/user-attachments/assets/2cf76839-7c81-4ec9-805c-fdbbdb8deb74" />
 
-Escalação de privilégios bem sucedida, foi possível acessar o SSH da máquina com o usuário root!
+Escalação de privilégios bem sucedida. Foi possível acessar o SSH da máquina com o usuário root!
 
 ---
 
@@ -219,7 +219,6 @@ Escalação de privilégios bem sucedida, foi possível acessar o SSH da máquin
 
 ## 4. Recomendações de Mitigação (Remediação)
 
-1. **SMB(Compartilhamento de Arquivos):** Desabilitar o acesso anônimo (Guest / Anonymous Access) aos compartilhamentos de rede SMB e restringir a visibilidade de pastas com dados sensíveis aplicando permissões adequadas de ACL/DACL.
-2. **Vazamento no GitHub:** Implementar ferramentas de Secret Scanning (ex: GitGuardian, Trufflehog) na esteira de CI/CD, revogar imediatamente a credencial comprometida e sanitizar o histórico de commits no repositório.
-3. **Contas de Serviço / SPNs (Kerberoasting):** Adotar senhas fortes/complexas (com mais de 25 caracteres) para contas de serviço ligadas a SPNs para inviabilizar ataques de força bruta, ou migrar para Group Managed Service Accounts (gMSA).
-4. **Serviços no Windows (PrivEsc):** Envolver todos os caminhos de executáveis de serviços que contenham espaços entre aspas no Registro do Windows (HKLM\SYSTEM\CurrentControlSet\Services) e aplicar o princípio do menor privilégio nas permissões de diretórios no sistema de arquivos (NTFS).
+1. **WordPress(Web):** Adotar senhas fortes/complexas para o usuário de administração do CMS, desabilitar ou excluir temas vulneráveis que possuam arquivos com possibilidade de edição.
+2. **Vazamento no Servidor:** Verificar permissões de arquivos confidenciais e críticos dentro do servidor e não expor informações de serviços rodando em outras máquinas.
+3. **Container Escape:** Aplicar estratégia de defesa em profundidade, redução de privilégios, endurecimento de configurações e monitoramento no Serviço do Container, evitando o escape para o Host.
